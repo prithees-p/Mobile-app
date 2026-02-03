@@ -1,0 +1,317 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../api_service.dart';
+
+class AddJobScreen extends StatefulWidget {
+  const AddJobScreen({super.key});
+
+  @override
+  State<AddJobScreen> createState() => _AddJobScreenState();
+}
+
+class _AddJobScreenState extends State<AddJobScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final titleController = TextEditingController();
+  final salaryController = TextEditingController();
+  final noofpersonsController = TextEditingController();
+  final timeController = TextEditingController();
+  final dateContoller = TextEditingController(
+    text: DateTime.now().toIso8601String().split('T').first,
+  );
+
+  bool isSubmitting = false;
+  List<String> designations = [];
+  List<String> locations = [];
+  String? selectedDesignation;
+  String? selectedLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([getlocation(), getDesignation()]);
+  }
+
+  // API Methods remain the same logic...
+  Future<void> getDesignation() async {
+    try {
+      final response = await ApiService().dio.get("/api/method/great_indian.great_indian.utils.api.get_designation");
+      if (response.statusCode == 200 && response.data["message"] != null) {
+        final List data = response.data["message"];
+        if (mounted) setState(() => designations = data.map((e) => e.toString()).toList());
+      }
+    } catch (e) { debugPrint("Designation error: $e"); }
+  }
+
+  Future<void> getlocation() async {
+    try {
+      final response = await ApiService().dio.get("/api/method/great_indian.great_indian.utils.api.get_locations");
+      if (response.statusCode == 200 && response.data["message"] != null) {
+        final List data = response.data["message"];
+        if (mounted) {
+          setState(() {
+            locations = data.map((e) => e.toString()).toList();
+            if (!locations.contains("Add New Location")) locations.add("Add New Location");
+          });
+        }
+      }
+    } catch (e) { debugPrint("Location error: $e"); }
+  }
+
+  Future<bool> addlocationApi(String location) async {
+    try {
+      final response = await ApiService().dio.post("/api/method/great_indian.great_indian.utils.api.add_location", data: {"location": location});
+      return response.statusCode == 200;
+    } catch (e) { return false; }
+  }
+
+  Future<void> _submitData() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (selectedDesignation == null || selectedLocation == null) {
+      _showError("Please complete all selections");
+      return;
+    }
+    setState(() => isSubmitting = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final postData = {
+        "job_title": titleController.text.trim(),
+        "designation": selectedDesignation,
+        "salary": salaryController.text.trim(),
+        "no_of_persons": noofpersonsController.text.trim(),
+        "posted_by": prefs.getString('savedEmail'),
+        "location": selectedLocation,
+        "date": dateContoller.text.trim(),
+        "time": timeController.text.trim(),
+      };
+      final response = await ApiService().dio.post("/api/method/great_indian.great_indian.utils.api.post_job", data: postData);
+      if (response.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Job Posted Successfully 🎉"), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+    } catch (e) { _showError("Post failed: $e"); }
+    finally { if (mounted) setState(() => isSubmitting = false); }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.redAccent));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text("Create Job Posting", style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.black,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader("Basic Info", Icons.info_outline),
+              _buildCard([
+                _buildTextField(titleController, "Job Title", Icons.work_outline),
+                const SizedBox(height: 16),
+                _buildDropdown("Select Designation", Icons.badge_outlined, selectedDesignation, designations, (val) => setState(() => selectedDesignation = val)),
+              ]),
+              
+              const SizedBox(height: 25),
+              _buildSectionHeader("Job Details", Icons.list_alt),
+              _buildCard([
+                _buildTextField(salaryController, "Monthly Salary", Icons.payments_outlined, isNumber: true),
+                const SizedBox(height: 16),
+                _buildTextField(noofpersonsController, "Openings (No. of Persons)", Icons.groups_outlined, isNumber: true),
+              ]),
+
+              const SizedBox(height: 25),
+              _buildSectionHeader("Logistics", Icons.location_city_outlined),
+              _buildCard([
+                _buildLocationDropdown(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildTextField(dateContoller, "Start Date", Icons.calendar_today, isDate: true)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildTimePickerField()),
+                  ],
+                ),
+              ]),
+
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : _submitData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    elevation: 2,
+                  ),
+                  child: isSubmitting
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("PUBLISH JOB", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- REUSABLE COMPONENTS ---
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Row(
+        children: [
+          // Icon(icon, size: 20, color: Colors.indigo),
+          // const SizedBox(width: 8),
+          // Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool isNumber = false, bool isDate = false}) {
+    return TextFormField(
+      controller: controller,
+      readOnly: isDate,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      onTap: isDate ? () => _selectDate() : null,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.indigo.withOpacity(0.7)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[200]!)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[200]!)),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      validator: (v) => v == null || v.isEmpty ? "Required" : null,
+    );
+  }
+
+ Widget _buildDropdown(String label, IconData icon, String? value, List<String> items, Function(String?) onChanged) {
+  return DropdownButtonFormField<String>(
+    value: value,
+    isExpanded: true, // 1. Allow the dropdown to fill width
+    items: items.map((d) => DropdownMenuItem(
+      value: d,
+      child: Text(
+        d,
+        overflow: TextOverflow.ellipsis, // 2. Handle long text with "..."
+        maxLines: 1,
+      ),
+    )).toList(),
+    onChanged: onChanged,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, color: Colors.indigo.withOpacity(0.7)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: Colors.grey[50],
+      // 3. Optional: Reduce content padding if still tight
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+    ),
+    validator: (v) => v == null ? "Required" : null,
+  );
+}
+
+  Widget _buildLocationDropdown() {
+    return DropdownButtonFormField<String>(
+      value: selectedLocation,
+      decoration: InputDecoration(
+        labelText: "Work Location",
+        prefixIcon: Icon(Icons.location_city, color: Colors.indigo.withOpacity(0.7)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      items: locations.map((l) => DropdownMenuItem(
+        value: l, 
+        child: Text(l, style: TextStyle(color: l == "Add New Location" ? Colors.indigo : Colors.black87, fontWeight: l == "Add New Location" ? FontWeight.bold : FontWeight.normal)),
+      )).toList(),
+      onChanged: (val) async {
+        if (val == "Add New Location") {
+          final String? newLoc = await _showAddLocationDialog();
+          if (newLoc != null && newLoc.isNotEmpty) {
+            if (await addlocationApi(newLoc)) {
+              setState(() { locations.insert(0, newLoc); selectedLocation = newLoc; });
+            }
+          }
+        } else { setState(() => selectedLocation = val); }
+      },
+      validator: (v) => v == null ? "Required" : null,
+    );
+  }
+
+  Widget _buildTimePickerField() {
+    return InkWell(
+      onTap: () async {
+        TimeOfDay? picked = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+        if (picked != null) setState(() => timeController.text = picked.format(context));
+      },
+      child: IgnorePointer(
+        child: TextFormField(
+          controller: timeController,
+          decoration: InputDecoration(
+            labelText: "Time",
+            prefixIcon: Icon(Icons.access_time, color: Colors.indigo.withOpacity(0.7)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          validator: (v) => v == null || v.isEmpty ? "Required" : null,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDate() async {
+    DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2100));
+    if (picked != null) setState(() => dateContoller.text = picked.toIso8601String().split('T').first);
+  }
+
+  Future<String?> _showAddLocationDialog() async {
+    TextEditingController controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("New Location"),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: "Enter city/area")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text("Add")),
+        ],
+      ),
+    );
+  }
+}
