@@ -13,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String userName = "Loading...";
   String userEmail = "...";
+  String userRole = "...";
   List<dynamic> myPostedJobs = [];
   bool isLoading = true;
 
@@ -54,9 +55,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     String email = prefs.getString('savedEmail') ?? "";
+    print(email);
     setState(() {
       userName = prefs.getString('full_name') ?? "ERP User";
       userEmail = email;
+      userRole = prefs.getString('userRole') ?? "User";
     });
     if (email.isNotEmpty) get_posted_job_details(email);
   }
@@ -123,6 +126,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(userName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 4),
                 Text(userEmail, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(userRole, style: TextStyle(color: Colors.indigo[400], fontSize: 14, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -132,6 +137,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatGrid() {
+    if (userRole != "ADMIN GREAT INDIAN") {
+      return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(
+        children: [
+          _buildStatCard("Total Applied", "${myPostedJobs.length}", Colors.indigo),
+          const SizedBox(width: 12),
+          _buildStatCard("In Review", "$openCount", Colors.orange),
+          const SizedBox(width: 12),
+          _buildStatCard("Completed", "$completedCount", Colors.green),
+        ],
+      ));
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -145,6 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
 
   Widget _buildStatCard(String label, String value, Color color) {
     return Expanded(
@@ -167,16 +185,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildActivityHeader() {
-    return const Padding(
+    if(userRole != "ADMIN GREAT INDIAN") {
+      return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10),
       child: Row(
         children: [
           Icon(Icons.history_rounded, size: 20, color: Colors.black54),
           SizedBox(width: 8),
-          Text("Posting History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text("Application History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ],
       ),
     );
+    } else {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.history_rounded, size: 20, color: Colors.black54),
+            SizedBox(width: 8),
+            Text("Posting History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildJobHistoryList() {

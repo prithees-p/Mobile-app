@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_service.dart';
+import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class AddJobScreen extends StatefulWidget {
   const AddJobScreen({super.key});
@@ -300,18 +305,91 @@ class _AddJobScreenState extends State<AddJobScreen> {
   }
 
   Future<String?> _showAddLocationDialog() async {
-    TextEditingController controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
+  TextEditingController controller = TextEditingController();
+  LatLng? selectedPoint;
+
+  return showDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder( // Use StatefulBuilder to update the map marker
+      builder: (context, setDialogState) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("New Location"),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: "Enter city/area")),
+        title: const Text("Select Location"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: "Tapped location name...",
+                prefixIcon: Icon(Icons.location_city),
+              ),
+            ),
+            const SizedBox(height: 15),
+            SizedBox(
+              height: 300,
+              width: double.maxFinite,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: const LatLng(11.0168, 76.9558),
+                    initialZoom: 12,
+                    // THIS IS WHERE THE SELECTION HAPPENS
+                    onTap: (tapPosition, point) async {
+                      setDialogState(() => selectedPoint = point);
+                      
+                      try {
+                        // REVERSE GEOCODING: LatLng -> Address Name
+                        List<Placemark> placemarks = await placemarkFromCoordinates(
+                          point.latitude, 
+                          point.longitude
+                        );
+                        if (placemarks.isNotEmpty) {
+                          Placemark place = placemarks[0];
+                          String name = "${place.locality ?? ''} ${place.subLocality ?? ''}".trim();
+                          controller.text = name.isEmpty ? "Unknown Location" : name;
+                        }
+                      } catch (e) {
+                        controller.text = "${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}";
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.yourerp.app',
+                    ),
+                    // MARKER LAYER: Shows where you tapped
+                    if (selectedPoint != null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: selectedPoint!,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text("Tap on the map to select a city", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text("Add")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()), 
+            child: const Text("Confirm"),
+          ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

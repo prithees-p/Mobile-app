@@ -6,6 +6,9 @@ import 'add_job.dart';
 import 'search_jobs.dart';
 import 'profile.dart';
 import 'analytics.dart';
+import 'distance_traveled.dart';
+import 'applications.dart';
+
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
 
@@ -16,20 +19,21 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   String userName = "User";
   String userEmail = "";
-
+  String userRole = "User";
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
   }
 
-  // Fetch data from SharedPreferences
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
+    print("USER information");
+    print("${prefs.getString('userEmail')} ,,, ${prefs.getString('userRole')}");  
     setState(() {
-      // Use the keys you saved during login
       userName = prefs.getString('full_name') ?? "ERP User";
-      userEmail = prefs.getString('savedEmail') ?? "";
+      userEmail = prefs.getString('userEmail') ?? "";
+      userRole = prefs.getString('userRole') ?? "User";
     });
   }
 
@@ -49,10 +53,10 @@ class _DashboardState extends State<Dashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Soft background color
+      backgroundColor: Colors.grey[100],
       body: Column(
         children: [
-          _buildHeader(), // Custom Modern Header
+          _buildHeader(),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -71,14 +75,16 @@ class _DashboardState extends State<Dashboard> {
                       crossAxisSpacing: 20,
                       mainAxisSpacing: 20,
                       children: [
-                        _buildStyledCard(
-                          context,
-                          title: "Add Job",
-                          subtitle: "Post new openings",
-                          icon: Icons.add_circle_outline,
-                          color: Colors.blueAccent,
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddJobScreen())),
-                        ),
+                        if (userRole == "ADMIN GREAT INDIAN")
+                          _buildStyledCard(
+                            context,
+                            title: "Add Job",
+                            subtitle: "Post new openings",
+                            icon: Icons.add_circle_outline,
+                            color: Colors.blueAccent,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddJobScreen())),
+                          ),
+                        if(userRole != "ADMIN GREAT INDIAN")
                         _buildStyledCard(
                           context,
                           title: "Search Job",
@@ -87,6 +93,8 @@ class _DashboardState extends State<Dashboard> {
                           color: Colors.orangeAccent,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchJobScreen())),
                         ),
+                        if(userRole == "ADMIN GREAT INDIAN")
+                        _buildStyledCard(context, title: "Applicatons", subtitle: "View applications", icon: Icons.description_outlined, color: Colors.pinkAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ApplicationsScreen()))),
                         _buildStyledCard(
                           context,
                           title: "Analytics",
@@ -95,6 +103,7 @@ class _DashboardState extends State<Dashboard> {
                           color: Colors.greenAccent[700]!,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsScreen())),
                         ),
+                        
                         _buildStyledCard(
                           context,
                           title: "Profile",
@@ -103,6 +112,7 @@ class _DashboardState extends State<Dashboard> {
                           color: Colors.purpleAccent,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
                         ),
+                        // _buildStyledCard(context, title: "Distance Travel", subtitle: "Track your travel distance", icon: Icons.directions_car_outlined, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DistanceTraveledScreen())))
                       ],
                     ),
                   ),
@@ -118,7 +128,7 @@ class _DashboardState extends State<Dashboard> {
   // --- MODERN HEADER SECTION ---
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 30),
+      padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 35),
       decoration: const BoxDecoration(
         color: Colors.indigo,
         borderRadius: BorderRadius.only(
