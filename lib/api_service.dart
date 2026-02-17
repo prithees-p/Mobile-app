@@ -40,6 +40,8 @@ class ApiService {
 
   /// Call on logout
   Future<void> clearSession() async {
+    print("Clearing session and cookies...");
+    print(cookieJar);
     await cookieJar.deleteAll();
   }
 }

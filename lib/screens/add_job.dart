@@ -6,7 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-
+import 'package:dropdown_search/dropdown_search.dart';
 class AddJobScreen extends StatefulWidget {
   const AddJobScreen({super.key});
 
@@ -44,7 +44,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
   // API Methods remain the same logic...
   Future<void> getDesignation() async {
     try {
-      final response = await ApiService().dio.get("/api/method/great_indian.great_indian.utils.api.get_designation");
+      final response = await ApiService().dio.get("/api/method/application.application.utils.py.api.get_designation");
       if (response.statusCode == 200 && response.data["message"] != null) {
         final List data = response.data["message"];
         if (mounted) setState(() => designations = data.map((e) => e.toString()).toList());
@@ -54,7 +54,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
 
   Future<void> getlocation() async {
     try {
-      final response = await ApiService().dio.get("/api/method/great_indian.great_indian.utils.api.get_locations");
+      final response = await ApiService().dio.get("/api/method/application.application.utils.py.api.get_locations");
       if (response.statusCode == 200 && response.data["message"] != null) {
         final List data = response.data["message"];
         if (mounted) {
@@ -67,9 +67,9 @@ class _AddJobScreenState extends State<AddJobScreen> {
     } catch (e) { debugPrint("Location error: $e"); }
   }
 
-  Future<bool> addlocationApi(String location) async {
+  Future<bool> addlocationApi(String location,String street,String latitude,String longitude) async {
     try {
-      final response = await ApiService().dio.post("/api/method/great_indian.great_indian.utils.api.add_location", data: {"location": location});
+      final response = await ApiService().dio.post("/api/method/application.application.utils.py.api.add_location", data: {"location": location,'street':street,'latitude':latitude,'longitude':longitude});
       return response.statusCode == 200;
     } catch (e) { return false; }
   }
@@ -93,7 +93,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
         "date": dateContoller.text.trim(),
         "time": timeController.text.trim(),
       };
-      final response = await ApiService().dio.post("/api/method/great_indian.great_indian.utils.api.post_job", data: postData);
+      final response = await ApiService().dio.post("/api/method/application.application.utils.py.api.post_job", data: postData);
       if (response.statusCode == 200 && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Job Posted Successfully 🎉"), backgroundColor: Colors.green));
         Navigator.pop(context);
@@ -250,28 +250,58 @@ class _AddJobScreenState extends State<AddJobScreen> {
 }
 
   Widget _buildLocationDropdown() {
-    return DropdownButtonFormField<String>(
-      value: selectedLocation,
-      decoration: InputDecoration(
-        labelText: "Work Location",
-        prefixIcon: Icon(Icons.location_city, color: Colors.indigo.withOpacity(0.7)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.grey[50],
+    return DropdownSearch<String>(
+      items: (filter, loadProps) => locations,
+      suffixProps: const DropdownSuffixProps(
+        dropdownButtonProps: DropdownButtonProps(iconOpened: Icon(Icons.arrow_drop_down)),
       ),
-      items: locations.map((l) => DropdownMenuItem(
-        value: l, 
-        child: Text(l, style: TextStyle(color: l == "Add New Location" ? Colors.indigo : Colors.black87, fontWeight: l == "Add New Location" ? FontWeight.bold : FontWeight.normal)),
-      )).toList(),
+      decoratorProps: DropDownDecoratorProps(
+        decoration: InputDecoration(
+          labelText: "Work Location",
+          prefixIcon: Icon(Icons.location_city, color: Colors.indigo.withOpacity(0.7)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+      ),
+      popupProps: PopupProps.menu(
+        showSearchBox: true,
+        searchFieldProps: TextFieldProps(
+          decoration: InputDecoration(
+            hintText: "Search location...",
+            prefixIcon: const Icon(Icons.search),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        
+        itemBuilder: (context, item, isSelected, isHovered) {
+          bool isAddButton = item == "Add New Location";
+          return ListTile(
+            title: Text(
+              item,
+              style: TextStyle(
+                color: isAddButton ? Colors.indigo : Colors.black87,
+                fontWeight: isAddButton ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          );
+        },
+      ),
+      selectedItem: selectedLocation,
       onChanged: (val) async {
         if (val == "Add New Location") {
-          final String? newLoc = await _showAddLocationDialog();
-          if (newLoc != null && newLoc.isNotEmpty) {
-            if (await addlocationApi(newLoc)) {
-              setState(() { locations.insert(0, newLoc); selectedLocation = newLoc; });
+          final dynamic result = await _showAddLocationDialog();
+          if (result != null && result is Map) {
+            if (await addlocationApi(result['city'], result['street'], result['latitude'], result['longitude'])) {
+              setState(() {
+                locations.insert(0, result['city']);
+                selectedLocation = result['city'];
+              });
             }
           }
-        } else { setState(() => selectedLocation = val); }
+        } else {
+          setState(() => selectedLocation = val);
+        }
       },
       validator: (v) => v == null ? "Required" : null,
     );
@@ -304,13 +334,17 @@ class _AddJobScreenState extends State<AddJobScreen> {
     if (picked != null) setState(() => dateContoller.text = picked.toIso8601String().split('T').first);
   }
 
-  Future<String?> _showAddLocationDialog() async {
+  Future<Map<String, String>?> _showAddLocationDialog() async {
+  
   TextEditingController controller = TextEditingController();
+  TextEditingController streetcontoller = TextEditingController();
+  TextEditingController latitudeController = TextEditingController();
+  TextEditingController longitudeController = TextEditingController();
   LatLng? selectedPoint;
 
-  return showDialog<String>(
+ return showDialog<Map<String, String>>( 
     context: context,
-    builder: (context) => StatefulBuilder( // Use StatefulBuilder to update the map marker
+    builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Select Location"),
@@ -318,13 +352,38 @@ class _AddJobScreenState extends State<AddJobScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              controller: streetcontoller,
+              decoration: const InputDecoration(
+                hintText: "Street",
+                prefixIcon: Icon(Icons.streetview)
+              ),
+            ),
+            // const SizedBox(height:15),
+            TextField(
               controller: controller,
               decoration: const InputDecoration(
-                hintText: "Tapped location name...",
+                hintText: "City",
                 prefixIcon: Icon(Icons.location_city),
               ),
             ),
+            // TextField(
+            //   controller: latitudeController,
+            //   readOnly: true,
+            //   decoration: const InputDecoration(
+            //     hintText: "Latitude",
+            //     prefixIcon: Icon(Icons.streetview),
+            //   ),
+            // ),
+            // TextField(
+            //   controller: longitudeController,
+            //   readOnly: true,
+            //   decoration: const InputDecoration(
+            //     hintText: "Longitude",
+            //     prefixIcon: Icon(Icons.streetview),
+            //   ),
+            // ),
             const SizedBox(height: 15),
+
             SizedBox(
               height: 300,
               width: double.maxFinite,
@@ -334,30 +393,43 @@ class _AddJobScreenState extends State<AddJobScreen> {
                   options: MapOptions(
                     initialCenter: const LatLng(11.0168, 76.9558),
                     initialZoom: 12,
-                    // THIS IS WHERE THE SELECTION HAPPENS
                     onTap: (tapPosition, point) async {
                       setDialogState(() => selectedPoint = point);
-                      
+                      print('-------------------------------');
+                      print(point);
                       try {
-                        // REVERSE GEOCODING: LatLng -> Address Name
                         List<Placemark> placemarks = await placemarkFromCoordinates(
                           point.latitude, 
                           point.longitude
                         );
+                        print(tapPosition);
+                        print("plaecemarksers ....................");
+                        print(placemarks);
                         if (placemarks.isNotEmpty) {
                           Placemark place = placemarks[0];
-                          String name = "${place.locality ?? ''} ${place.subLocality ?? ''}".trim();
-                          controller.text = name.isEmpty ? "Unknown Location" : name;
+                          String street = place.street ?? '';
+                          String subLocality = place.subLocality ?? '';
+                          String city = place.locality ?? '';
+                          String postCode = place.postalCode ?? '';
+                          String fullName = "$street, $subLocality, $city - $postCode".trim();
+                        
+                          fullName = fullName.replaceAll(RegExp(r', ,|,,'), ',').trim();
+                          
+                          streetcontoller.text = fullName.isEmpty ? "Unknown Location" : fullName;
+                          controller.text = city;
+                          latitudeController.text = point.latitude.toStringAsFixed(6);
+                          longitudeController.text = point.longitude.toStringAsFixed(6);
                         }
                       } catch (e) {
-                        controller.text = "${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}";
+                        controller.text = "Error finding address";
+                        controller.text = "Unknown City";
                       }
                     },
                   ),
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.yourerp.app',
+                      userAgentPackageName: '',
                     ),
                     // MARKER LAYER: Shows where you tapped
                     if (selectedPoint != null)
@@ -384,7 +456,14 @@ class _AddJobScreenState extends State<AddJobScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()), 
+            onPressed: () {
+              Navigator.pop(context, {
+                "city": controller.text.trim(),
+                "street": streetcontoller.text.trim(),
+                "latitude": latitudeController.text.trim(),
+                "longitude": longitudeController.text.trim(),
+              });
+            }, 
             child: const Text("Confirm"),
           ),
         ],

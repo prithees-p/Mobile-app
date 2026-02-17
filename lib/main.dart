@@ -6,6 +6,8 @@ import 'api_service.dart';
 import 'package:dio/dio.dart';
 import 'screens/signuppage.dart';
 import 'screens/distance_traveled.dart';
+import 'package:pay/pay.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
@@ -49,7 +51,13 @@ class _LoginPageState extends State<LoginPage> {
   bool isLoading = false;
   bool obscurePassword = true;
   bool rememberMe = true;
-
+  final List<PaymentItem> _paymentItems = [
+    PaymentItem(
+      label: 'Total',
+      amount: '99.99',
+      status: PaymentItemStatus.final_price,
+    )
+  ];
   late final Dio dio;
 
   @override
@@ -131,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
   void getrole() async {
     try {
       final response = await dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_user_role?username=${emailController.text.trim()}",
+        "/api/method/application.application.utils.py.api.get_user_role?username=${emailController.text.trim()}",
       );
 
       if (response.statusCode == 200) {
@@ -248,6 +256,18 @@ class _LoginPageState extends State<LoginPage> {
                       child: const Text("DISTANCE TRAVELED", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
                     ),
                   ),
+                  const SizedBox(height:40),
+                  // GooglePayButton(
+                  //   paymentConfiguration: PaymentConfiguration.fromJsonString(
+                  //       defaultGooglePayConfigString),
+                  //   paymentItems: _paymentItems,
+                  //   type: GooglePayButtonType.buy,
+                  //   margin: const EdgeInsets.only(top: 15.0),
+                  //   onPaymentResult: onGooglePayResult,
+                  //   loadingIndicator: const Center(
+                  //     child: CircularProgressIndicator(),
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -256,7 +276,9 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
+  void onGooglePayResult(paymentResult) {
+    print(paymentResult);
+  }
   Widget _buildHeader(Size size) {
     return Container(
       height: size.height * 0.3,

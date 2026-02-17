@@ -4,6 +4,11 @@ import 'package:geocoding/geocoding.dart';
 import 'package:dio/dio.dart';
 import '../api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
+
 class SearchJobScreen extends StatefulWidget {
   const SearchJobScreen({super.key});
 
@@ -26,12 +31,11 @@ class _SearchJobScreenState extends State<SearchJobScreen> {
     _getUserLocation();
   }
 
-  // --- API CALLS ---
 
   Future<void> _fetchJobs() async {
     try {
       final response = await ApiService().dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_job_list",
+        "/api/method/application.application.utils.py.api.get_job_list",
       );
       if (response.statusCode == 200) {
         setState(() {
@@ -48,7 +52,7 @@ class _SearchJobScreenState extends State<SearchJobScreen> {
   Future<Map<String, dynamic>> fetchOwnerDetails(String jobId) async {
     try {
       final response = await ApiService().dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_user_details",
+        "/api/method/application.application.utils.py.api.get_user_details",
         queryParameters: {"job_id": jobId},
       );
       return response.data["message"] ?? {"full_name": "N/A", "mobile_no": "N/A"};
@@ -253,7 +257,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   Future<void> _fetchJobDetails() async {
     try {
       final response = await ApiService().dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_job_details",
+        "/api/method/application.application.utils.py.api.get_job_details",
         queryParameters: {"job_id": widget.jobId},
       );
       setState(() {
@@ -267,57 +271,72 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     }
   }
   Future<void> applyforjob(String jobId) async {
-  try {
-    final response = await ApiService().dio.post(
-      "/api/method/great_indian.great_indian.utils.api.apply_for_job",
-      data: {
-        "job_id": jobId, 
-        "user": username, 
-        "email": userEmail
-      },
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Applied successfully!"),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      final response = await ApiService().dio.post(
+        "/api/method/application.application.utils.py.api.apply_for_job",
+        data: {
+          "job_id": jobId,
+          "user": username,
+          "email": userEmail
+        },
       );
-    }
-  } on DioException catch (e) {
-    String errorMsg = "Something went wrong";
 
-    if (e.response != null) {
-      final data = e.response!.data;
+      print("Response data: ${response.data}");
 
-      // Handle Frappe Validation Errors (often nested in 'exception' or 'message')
-      if (data is Map) {
-        if (data.containsKey('exception')) {
-          // Extracts "You have already applied..." from the stack trace string
-          errorMsg = data['exception'].toString().split(':').last.trim();
-        } else if (data.containsKey('message')) {
-          errorMsg = data['message'].toString();
+      String message = response.data?['message']?.toString() ?? "";
+
+      if (message.contains("Traceback")) {
+        throw Exception(
+          message.split("Exception:").last.trim(),
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Applied successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+    } on DioException catch (e) {
+      String errorMsg = "Something went wrong";
+
+      if (e.response != null) {
+        final data = e.response!.data;
+
+        if (data is Map) {
+          if (data['message'] != null) {
+            errorMsg = data['message'].toString();
+          } else if (data['exception'] != null) {
+            errorMsg =
+                data['exception'].toString().split(':').last.trim();
+          }
         }
       }
-    }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: Colors.orangeAccent, // Use a warning color
-        ),
-      );
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Unexpected error: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst("Exception: ", "")),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
-}
+
 
   @override
   Widget build(BuildContext context) {
@@ -339,33 +358,100 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Title & Primary Info
                   Text(
                     jobDetails!['job_title'],
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.indigo),
+                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    jobDetails!['designation'] ?? "Designation Not Specified",
-                    style: TextStyle(fontSize: 18, color: Colors.grey[700], fontWeight: FontWeight.w500),
-                  ),
                   const SizedBox(height: 20),
 
-                  // 2. Job Overview Section (Grid style)
-                  _buildSectionTitle("Job Overview"),
+                 _buildSectionTitle("Job Overview"),
                   const SizedBox(height: 10),
                   _buildOverviewGrid(),
-                  
-                  const SizedBox(height: 25),
 
-                  // 3. Contact & Posting Details Section
+                  const SizedBox(height: 25),
+                  _buildSectionTitle("Full Address"), 
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                jobDetails!['location'] ?? "City Not Specified",
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                jobDetails!['location_details'] ?? "Full address not available",
+                                style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                              ),
+                              const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () async {
+                                  final String lat = jobDetails!['latitude']?.toString() ?? '0';
+                                  final String lng = jobDetails!['longitude']?.toString() ?? '0';
+
+                                  final Uri url = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
+
+                                  try {
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(
+                                        url, 
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } else {
+                                      debugPrint("Could not launch maps for: $lat, $lng");
+                                    }
+                                  } catch (e) {
+                                    debugPrint("Error launching maps: $e");
+                                  }
+                                },
+                                child: Row(
+                                  children: const [
+                                    Icon(Icons.map_outlined, size: 18, color: Colors.blue),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      "View on Map",
+                                      style: TextStyle(
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
                   _buildSectionTitle("Posting Details"),
                   const SizedBox(height: 10),
                   _buildContactCard(),
-
                   const SizedBox(height: 25),
 
-                  // 4. Description Section
                   _buildSectionTitle("Description"),
                   const SizedBox(height: 10),
                   Container(
@@ -382,19 +468,37 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // ... Description Container ...
+const SizedBox(height: 20),
+
+ListTile(
+  onTap: _handleCalendarSync,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    side: BorderSide(color: Colors.indigo.withOpacity(0.2)),
+  ),
+  tileColor: Colors.indigo.withOpacity(0.05),
+  leading: const Icon(Icons.event_available, color: Colors.indigo),
+  title: const Text(
+    "Mark to Calendar",
+    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+  ),
+  subtitle: const Text("Sync this job to your phone calendar"),
+  trailing: const Icon(Icons.add, color: Colors.indigo),
+),
+
+const SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-
-          // 5. Sticky Apply Button
           _buildApplyButton(),
         ],
       ),
     );
   }
 
-  // Helper: Section Title
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -402,7 +506,6 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     );
   }
 
-  // Helper: Overview Grid
   Widget _buildOverviewGrid() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -418,6 +521,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           _buildGridItem(Icons.location_on, "Location", jobDetails!['location'], Colors.red),
           _buildGridItem(Icons.currency_rupee, "Salary", "₹${jobDetails!['salary']}", Colors.green),
           _buildGridItem(Icons.people, "Openings", "${jobDetails!['no_of_person']} Vacancies", Colors.orange),
+          _buildGridItem(Icons.desktop_windows_outlined, 'Designation', jobDetails!['designation'], Colors.indigo)
         ],
       ),
     );
@@ -434,15 +538,15 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       ),
       child: Column(
         children: [
-          _buildListTile(Icons.email_outlined, "Email", jobDetails!['owner']),
+          _buildAnimatedListTile(Icons.email_outlined, "Email", jobDetails!['owner'],1,canCopy: true),
           const Divider(color: Colors.indigo, thickness: 0.1),
-          _buildListTile(Icons.person_outline, "Contact Person", jobDetails!['name1'] ?? "Not Available"),
+          _buildAnimatedListTile(Icons.person_outline, "Contact Person", jobDetails!['name1'] ?? "Not Available",2,canCopy: false),
           const Divider(color: Colors.indigo, thickness: 0.1),
-          _buildListTile(Icons.phone_android_outlined, "Mobile Number",jobDetails!['mobile_number'] ?? "Not Available"),
+          _buildAnimatedListTile(Icons.phone_android_outlined, "Mobile Number",jobDetails!['mobile_number'] ?? "Not Available",3,canCopy: true),
           const Divider(color: Colors.indigo, thickness: 0.1),
-          _buildListTile(Icons.calendar_month_outlined, "Date", jobDetails!['date']),
+          _buildAnimatedListTile(Icons.calendar_month_outlined, "Date", jobDetails!['date'],4,canCopy: false),
           const Divider(color: Colors.indigo, thickness: 0.1),
-          _buildListTile(Icons.access_time_rounded, "Time", jobDetails!['time']),
+          _buildAnimatedListTile(Icons.access_time_rounded,"Time",formatToIndianTime(jobDetails!['time']),5,canCopy: false),
         ],
       ),
     );
@@ -471,22 +575,67 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   }
 
   // Helper: ListTile for Contact Card
-  Widget _buildListTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.indigo),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.black54)),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.indigo)),
-        ],
+  Widget _buildListTile(IconData icon, String label, String value, {bool canCopy = true}) {
+    print("Building ListTile for $label with value: $value");
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (canCopy) {
+            Clipboard.setData(ClipboardData(text: value));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("$label copied!"), duration: const Duration(seconds: 1)),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 20, color: Colors.indigo),
+              ),
+              const SizedBox(width: 15),
+              Text(label, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+              const Spacer(),
+              Row(
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.indigo, fontSize: 14),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+  Widget _buildAnimatedListTile(IconData icon, String label, String value, int index,{bool canCopy = false}) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 400 + (index * 100)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(50 * (1 - value), 0),
+            child: child,
+          ),
+        );
+      },
+      child: _buildListTile(icon, label, value, canCopy: canCopy),
+    );
+  }
 
-  // Helper: Apply Button
   Widget _buildApplyButton() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -510,5 +659,60 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleCalendarSync() async {
+    final String dateStr = jobDetails!['date'] ?? DateTime.now().toString();
+    final DateTime startTime = DateTime.tryParse(dateStr) ?? DateTime.now();
+    
+    // Set a default end time (e.g., 2 hours later) if not provided by API
+    final DateTime endTime = startTime.add(const Duration(hours: 2));
+
+    // 2. Create the Event object
+    final event = Event(
+      title: jobDetails!['title'] ?? 'Job Appointment',
+      description: jobDetails!['description'] ?? '',
+      location: "${jobDetails!['location'] ?? ''}, ${jobDetails!['location_details'] ?? ''}",
+      startDate: startTime,
+      endDate: endTime,
+      allDay: false,
+    );
+
+    // 3. Call your Add2Calendar class
+    try {
+      bool success = await Add2Calendar.addEvent2Cal(event);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Calendar app opened!")),
+        );
+      }
+    } on PlatformException catch (e) {
+      debugPrint("Failed to add to calendar: ${e.message}");
+    }
+  }
+}
+
+String formatToIndianTime(String? timeString) {
+  if (timeString == null || timeString.isEmpty) return "Not specified";
+
+  try {
+    DateTime utcTime = DateTime.parse(timeString);
+    DateTime istTime = utcTime.toUtc().add(const Duration(hours: 5, minutes: 30));
+    return DateFormat('hh:mm a').format(istTime);
+  } catch (e) {
+    try {
+      final parts = timeString.split(":");
+      final now = DateTime.now();
+      final dt = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+      return DateFormat('hh:mm a').format(dt);
+    } catch (_) {
+      return timeString; 
+    }
   }
 }

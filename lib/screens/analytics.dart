@@ -25,7 +25,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final response = await ApiService().dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_hiring_analytics",
+        "/api/method/application.application.utils.py.api.get_hiring_analytics",
         queryParameters: {"username": prefs.getString('savedEmail')},
       );
 

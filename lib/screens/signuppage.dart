@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import '../api_service.dart';
 import 'package:learning/main.dart';
 class Signuppage extends StatefulWidget {
@@ -24,6 +23,7 @@ class _SignuppageState extends State<Signuppage> {
   }
 
   Future<void> _handleSignup() async {
+    print("Comes");
     if (_nameController.text.isEmpty || _emailController.text.isEmpty || _selectedRole == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all fields")),
@@ -58,7 +58,7 @@ class _SignuppageState extends State<Signuppage> {
   Future<bool> signupfunction(String name, String email, String? role) async {
     try {
       final response = await ApiService().dio.post(
-        "/api/method/great_indian.great_indian.utils.api.signupfunction", 
+        "/api/method/application.application.utils.py.api.signupfunction", 
         data: {"name": name, "email": email, "role": role, "phone": _phoneController.text},
       );
       return response.statusCode == 200;
@@ -185,7 +185,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     try {
       final response = await ApiService().dio.post(
-        "/api/method/great_indian.great_indian.utils.api.set_password",
+        "/api/method/application.application.utils.py.api.set_password",
         data: {
           "email": widget.email,
           "password": pwd,
