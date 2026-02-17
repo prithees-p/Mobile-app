@@ -13,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String userName = "Loading...";
   String userEmail = "...";
+  String userRole = "...";
   List<dynamic> myPostedJobs = [];
   bool isLoading = true;
 
@@ -30,7 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => isLoading = true);
     try {
       final response = await ApiService().dio.get(
-        "/api/method/great_indian.great_indian.utils.api.get_posted_job_details",
+        "/api/method/application.application.utils.py.api.get_posted_job_details",
         queryParameters: {"username": email},
       );
 
@@ -50,13 +51,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => isLoading = false);
     }
   }
+  
+  Future<void> _handleLogout(context) async {
+    final prefs = await SharedPreferences.getInstance();
+  
+    await prefs.clear(); 
+    
+    await ApiService().clearSession();
+
+    if (!mounted) return;
+    
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }   
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     String email = prefs.getString('savedEmail') ?? "";
+    print(email);
     setState(() {
       userName = prefs.getString('full_name') ?? "ERP User";
       userEmail = email;
+      userRole = prefs.getString('userRole') ?? "User";
     });
     if (email.isNotEmpty) get_posted_job_details(email);
   }
@@ -70,12 +89,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.indigo[900],
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () => _handleLogout(context),
-          )
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.logout_rounded),
+        //     onPressed: () => _handleLogout(context),
+        //   )
+        // ],
       ),
       // --- REFRESH INDICATOR ADDED HERE ---
       body: RefreshIndicator(
@@ -123,6 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(userName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 4),
                 Text(userEmail, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(userRole, style: TextStyle(color: Colors.indigo[400], fontSize: 14, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -132,6 +153,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatGrid() {
+    if (userRole != "Job Seeker") {
+      return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(
+        children: [
+          _buildStatCard("Total Applied", "${myPostedJobs.length}", Colors.indigo),
+          const SizedBox(width: 12),
+          _buildStatCard("In Review", "$openCount", Colors.orange),
+          const SizedBox(width: 12),
+          _buildStatCard("Completed", "$completedCount", Colors.green),
+        ],
+      ));
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -145,6 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
 
   Widget _buildStatCard(String label, String value, Color color) {
     return Expanded(
@@ -167,16 +201,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildActivityHeader() {
-    return const Padding(
+    if(userRole != "Job Seeker") {
+      return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10),
       child: Row(
         children: [
           Icon(Icons.history_rounded, size: 20, color: Colors.black54),
           SizedBox(width: 8),
-          Text("Posting History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text("Application History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ],
       ),
     );
+    } else {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.history_rounded, size: 20, color: Colors.black54),
+            SizedBox(width: 8),
+            Text("Posting History To be applied", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildJobHistoryList() {
@@ -201,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Text(job['job_title'] ?? "Untiteld", style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(job['job_title'] ?? "Job Title Not Mentioned", style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text("${job['designation']} • ${job['date']}"),
@@ -226,14 +273,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-  }
-
-  void _handleLogout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    await ApiService().clearSession();
-    if (context.mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (r) => false);
-    }
   }
 }
