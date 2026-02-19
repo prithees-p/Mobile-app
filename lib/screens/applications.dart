@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:learning/api_service.dart';
 import 'package:flutter/services.dart';
 import 'package:pay/pay.dart';
-
+import 'chat_details.dart';
 class ApplicationsScreen extends StatefulWidget {
   const ApplicationsScreen({super.key});
 
@@ -341,6 +341,14 @@ class _ApplicationApprovalState extends State<ApplicationApproval> {
         title: const Text("Review Application", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.indigo,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(
+                toUserEmail: widget.applicationData['email_id'] ?? "",
+                toUserName: widget.applicationData['applicant'] ?? "Applicant",
+            )));
+          }, icon: const Icon(Icons.chat, color: Colors.redAccent)),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
