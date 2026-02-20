@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
+import 'chat_details.dart';
 
 class SearchJobScreen extends StatefulWidget {
   const SearchJobScreen({super.key});
@@ -344,11 +345,24 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     if (jobDetails == null) return const Scaffold(body: Center(child: Text("Error loading")));
 
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Soft background to make cards pop
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text("Job Details", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.indigo,
         iconTheme: const IconThemeData(color: Colors.white),
+          actions: [
+            if(userRole != "Applicant")
+            IconButton(
+              color: Colors.redAccent[200],
+              icon: const Icon(Icons.mark_chat_unread_rounded),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(
+                  toUserEmail: jobDetails!['owner'],
+                  toUserName: jobDetails!['name1'] ?? "Contact Person",
+                )));
+              },
+          ) 
+        ],
       ),
       body: Column(
         children: [
@@ -468,26 +482,24 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // ... Description Container ...
-const SizedBox(height: 20),
 
-ListTile(
-  onTap: _handleCalendarSync,
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(12),
-    side: BorderSide(color: Colors.indigo.withOpacity(0.2)),
-  ),
-  tileColor: Colors.indigo.withOpacity(0.05),
-  leading: const Icon(Icons.event_available, color: Colors.indigo),
-  title: const Text(
-    "Mark to Calendar",
-    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-  ),
-  subtitle: const Text("Sync this job to your phone calendar"),
-  trailing: const Icon(Icons.add, color: Colors.indigo),
-),
+                  ListTile(
+                    onTap: _handleCalendarSync,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.indigo.withOpacity(0.2)),
+                    ),
+                    tileColor: Colors.indigo.withOpacity(0.05),
+                    leading: const Icon(Icons.event_available, color: Colors.indigo),
+                    title: const Text(
+                      "Mark to Calendar",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                    ),
+                    subtitle: const Text("Add a remainder to your phone calendar"),
+                    trailing: const Icon(Icons.add, color: Colors.indigo),
+                  ),
 
-const SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -662,32 +674,36 @@ const SizedBox(height: 20),
   }
 
   Future<void> _handleCalendarSync() async {
+    if (jobDetails == null) {
+      debugPrint("Job details are null, cannot sync.");
+      return;
+    }
+
     final String dateStr = jobDetails!['date'] ?? DateTime.now().toString();
     final DateTime startTime = DateTime.tryParse(dateStr) ?? DateTime.now();
-    
-    // Set a default end time (e.g., 2 hours later) if not provided by API
     final DateTime endTime = startTime.add(const Duration(hours: 2));
 
-    // 2. Create the Event object
     final event = Event(
       title: jobDetails!['title'] ?? 'Job Appointment',
       description: jobDetails!['description'] ?? '',
       location: "${jobDetails!['location'] ?? ''}, ${jobDetails!['location_details'] ?? ''}",
       startDate: startTime,
       endDate: endTime,
-      allDay: false,
     );
 
-    // 3. Call your Add2Calendar class
     try {
       bool success = await Add2Calendar.addEvent2Cal(event);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Calendar app opened!")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Event sent to calendar!")),
+          );
+        }
+      } else {
+        debugPrint("Calendar sync returned false. Check permissions or if user canceled.");
       }
-    } on PlatformException catch (e) {
-      debugPrint("Failed to add to calendar: ${e.message}");
+    } catch (e) {
+      debugPrint("Error: $e");
     }
   }
 }

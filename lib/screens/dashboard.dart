@@ -7,7 +7,7 @@ import 'search_jobs.dart';
 import 'profile.dart';
 import 'analytics.dart';
 import 'applications.dart';
-
+import 'in_app_chat.dart';
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
 
@@ -209,6 +209,18 @@ class _DashboardState extends State<Dashboard> {
                           color: Colors.purpleAccent,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
                         ),
+                        // Inside your GridView.count children:
+                        _buildStyledCard(
+                          context,
+                          title: "Messages",
+                          subtitle: "Chat with ${userRole == 'JOB POSTER' ? 'Applicants' : 'Recruiters'}",
+                          icon: Icons.chat_bubble_outline_rounded,
+                          color: Colors.blue,
+                          onTap: () => Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (_) => const ChatListScreen())
+                          ),
+),
                         // _buildStyledCard(context, title: "Distance Travel", subtitle: "Track your travel distance", icon: Icons.directions_car_outlined, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DistanceTraveledScreen())))
                       ],
                     ),
@@ -344,7 +356,7 @@ class _DashboardState extends State<Dashboard> {
                                               subtitle: Padding(
                                                 padding: const EdgeInsets.only(top: 4),
                                                 child: Text(
-                                                  item['email_content'] ?? '',
+                                                  item['subject'] ?? '',
                                                   style: TextStyle(color: Colors.grey[700], height: 1.4),
                                                 ),
                                               ),
@@ -447,6 +459,74 @@ class _DashboardState extends State<Dashboard> {
             Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+
+class ChatDetailScreen extends StatefulWidget {
+  final String chatPartner;
+  const ChatDetailScreen({super.key, required this.chatPartner});
+
+  @override
+  State<ChatDetailScreen> createState() => _ChatDetailScreenState();
+}
+
+class _ChatDetailScreenState extends State<ChatDetailScreen> {
+  final TextEditingController _controller = TextEditingController();
+  final List<Map<String, dynamic>> _messages = []; // Logic to store/fetch messages
+
+  void _sendMessage() {
+    if (_controller.text.trim().isEmpty) return;
+    setState(() {
+      _messages.add({"text": _controller.text, "isMe": true});
+    });
+    _controller.clear();
+    // Use ApiService().dio.post(...) here to save the message to your database
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.chatPartner)),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              reverse: true,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[_messages.length - 1 - index];
+                return Align(
+                  alignment: msg["isMe"] ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: msg["isMe"] ? Colors.indigo : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Text(
+                      msg["text"],
+                      style: TextStyle(color: msg["isMe"] ? Colors.white : Colors.black),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: "Type a message..."))),
+                IconButton(icon: const Icon(Icons.send, color: Colors.indigo), onPressed: _sendMessage),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

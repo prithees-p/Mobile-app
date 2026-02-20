@@ -134,9 +134,9 @@ class _AddJobScreenState extends State<AddJobScreen> {
               const SizedBox(height: 25),
               _buildSectionHeader("Job Details", Icons.list_alt),
               _buildCard([
-                _buildTextField(salaryController, "Monthly Salary", Icons.payments_outlined, isNumber: true),
+                _buildTextField(salaryController, "Salary", Icons.payments_outlined, isNumber: true),
                 const SizedBox(height: 16),
-                _buildTextField(noofpersonsController, "Openings (No. of Persons)", Icons.groups_outlined, isNumber: true),
+                _buildTextField(noofpersonsController, "No.of Persons", Icons.groups_outlined, isNumber: true),
               ]),
 
               const SizedBox(height: 25),
