@@ -15,10 +15,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String userEmail = "...";
   String userRole = "...";
   List<dynamic> myPostedJobs = [];
+  List<dynamic> myAppliedJobs = [];
   bool isLoading = true;
 
   int openCount = 0;
   int completedCount = 0;
+  int approvedCount = 0;
+  int rejectedCount = 0;
 
   @override
   void initState() {
@@ -51,7 +54,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => isLoading = false);
     }
   }
-  
+  Future<void> _get_history_job_seeker(String email) async {
+    print("coms in");
+    setState(() => isLoading = true);
+    try {
+      print("coms in try $email");
+      final response = await ApiService().dio.get(
+        "/api/method/application.application.utils.py.api.get_history_job_seeker",
+        queryParameters: {"email": email},
+      );
+      print(response.statusCode);
+      if (response.statusCode == 200) {
+        print(response.data);
+        print("------------------");
+        List data = response.data["message"] ?? [];
+        if (mounted) {
+          setState(() {
+            myAppliedJobs = data;
+            approvedCount = data.where((job) => job['status'] == 'Approved').length;
+            rejectedCount = data.where((job) => job['status'] == 'Rejected').length;
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching profile stats: $e");
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
   Future<void> _handleLogout(context) async {
     final prefs = await SharedPreferences.getInstance();
   
@@ -78,6 +108,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userRole = prefs.getString('userRole') ?? "User";
     });
     if (email.isNotEmpty) get_posted_job_details(email);
+    _get_history_job_seeker(email);
   }
 
   @override
@@ -171,9 +202,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildStatCard("Total", "${myPostedJobs.length}", Colors.indigo),
           const SizedBox(width: 12),
-          _buildStatCard("Open", "$openCount", Colors.green),
+          _buildStatCard("Approved", "$approvedCount", Colors.green),
           const SizedBox(width: 12),
-          _buildStatCard("Done", "$completedCount", Colors.orange),
+          _buildStatCard("Rejected", "$rejectedCount", Colors.orange),
         ],
       ),
     );
@@ -230,48 +261,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (isLoading && myPostedJobs.isEmpty) {
       return const Padding(padding: EdgeInsets.only(top: 50), child: CircularProgressIndicator());
     }
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: myPostedJobs.length,
-      itemBuilder: (context, index) {
-        final job = myPostedJobs[index];
-        final bool isOpen = job['status'] == 'Open';
-        
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.grey.shade100),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Text(job['job_title'] ?? "Job Title Not Mentioned", style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text("${job['designation']} • ${job['date']}"),
+    if(userRole != "Job Seeker") {
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: myPostedJobs.length,
+        itemBuilder: (context, index) {
+          final job = myPostedJobs[index];
+          final bool isOpen = job['status'] == 'Open';
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.grey.shade100),
             ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Icon(
-                  isOpen ? Icons.check_circle_outline : Icons.done_all_rounded,
-                  color: isOpen ? Colors.green : Colors.grey,
-                  size: 20,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  job['status'] ?? "",
-                  style: TextStyle(color: isOpen ? Colors.green : Colors.grey, fontWeight: FontWeight.bold, fontSize: 10),
-                ),
-              ],
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              title: Text(job['job_title'] ?? "Job Title Not Mentioned", style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text("${job['designation']} • ${job['date']}"),
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(
+                    isOpen ? Icons.check_circle_outline : Icons.done_all_rounded,
+                    color: isOpen ? Colors.green : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    job['status'] ?? "",
+                    style: TextStyle(color: isOpen ? Colors.green : Colors.grey, fontWeight: FontWeight.bold, fontSize: 10),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    } else {
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: myPostedJobs.length,
+        itemBuilder: (context, index) {
+          final job = myPostedJobs[index];
+          final bool isOpen = job['status'] == 'Open';
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.grey.shade100),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              title: Text(job['job_title'] ?? "Job Title Not Mentioned", style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text("${job['designation']} • ${job['date']}"),
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(
+                    isOpen ? Icons.check_circle_outline : Icons.done_all_rounded,
+                    color: isOpen ? Colors.green : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    job['status'] ?? "",
+                    style: TextStyle(color: isOpen ? Colors.green : Colors.grey, fontWeight: FontWeight.bold, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
   }
 }
