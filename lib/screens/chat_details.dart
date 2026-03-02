@@ -277,11 +277,55 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
-      appBar: AppBar(backgroundColor: Colors.indigo, title: Text(widget.toUserName), foregroundColor: Colors.white),
+      appBar: AppBar(
+        backgroundColor: Colors.indigo, 
+        title: Text(widget.toUserName), 
+        foregroundColor: Colors.white,
+        elevation: 1,
+      ),
       body: Column(
         children: [
-          Expanded(child: isLoading ? const Center(child: CircularProgressIndicator()) : _buildMessageList()),
+          Expanded(
+            child: isLoading 
+                ? const Center(child: CircularProgressIndicator()) 
+                : (messages.isEmpty ? _buildEmptyChatPlaceholder() : _buildMessageList()),
+          ),
           _buildInputArea(),
+        ],
+      ),
+    );
+  }
+  Widget _buildEmptyChatPlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.chat_bubble_outline, size: 80, color: Colors.indigo.withOpacity(0.2)),
+          const SizedBox(height: 16),
+          Text(
+            "No messages yet",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Send a message to start chatting with\n${widget.toUserName}",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[500]),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              _messageController.text = "Hi! 👋 ${widget.toUserName}";
+              _sendMessage();
+            },
+            icon: const Icon(Icons.waving_hand),
+            label: const Text("Say Hi!"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+          )
         ],
       ),
     );
@@ -292,7 +336,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
       itemCount: messages.length,
-      itemBuilder: (context, index) => _buildMessageBubble(messages[index], messages[index]['from_user'] == currentUserEmail),
+      itemBuilder: (context, index) => _buildMessageBubble(
+        messages[index], 
+        messages[index]['from_user'] == currentUserEmail
+      ),
     );
   }
 
