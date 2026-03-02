@@ -123,9 +123,10 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         if (!mounted) return;
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const Dashboard()),
+          MaterialPageRoute(builder: (context) => const Dashboard()),
+          (route) => false,
         );
       } else {
         showError(data["message"] ?? "Invalid Credentials");

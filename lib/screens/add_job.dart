@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_service.dart';
-import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:intl/intl.dart';
 class AddJobScreen extends StatefulWidget {
   const AddJobScreen({super.key});
 
@@ -76,10 +75,29 @@ class _AddJobScreenState extends State<AddJobScreen> {
 
   Future<void> _submitData() async {
     if (!_formKey.currentState!.validate()) return;
+
     if (selectedDesignation == null || selectedLocation == null) {
       _showError("Please complete all selections");
       return;
     }
+
+    try {
+      String dateStr = dateContoller.text.trim();
+      String timeStr = timeController.text.trim();  
+      final inputFormat = DateFormat("yyyy-MM-dd hh:mm a");
+      DateTime selectedDateTime = inputFormat.parse("$dateStr $timeStr");
+      selectedDateTime = selectedDateTime.toLocal();
+      DateTime now = DateTime.now();
+      if (selectedDateTime.isBefore(now)) {
+        _showError(
+            "You cannot schedule a job in the past. Please select a future time.");
+        return;
+      }
+    } catch (e) {
+      _showError("Invalid Date or Time format selected");
+      return;
+    }
+
     setState(() => isSubmitting = true);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -93,13 +111,29 @@ class _AddJobScreenState extends State<AddJobScreen> {
         "date": dateContoller.text.trim(),
         "time": timeController.text.trim(),
       };
-      final response = await ApiService().dio.post("/api/method/application.application.utils.py.api.post_job", data: postData);
+
+      final response = await ApiService().dio.post(
+        "/api/method/application.application.utils.py.api.post_job",
+        data: postData,
+      );
+
       if (response.statusCode == 200 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Job Posted Successfully 🎉"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Job Posted Successfully 🎉"),
+            backgroundColor: Colors.green,
+          ),
+        );
+
         Navigator.pop(context);
       }
-    } catch (e) { _showError("Post failed: $e"); }
-    finally { if (mounted) setState(() => isSubmitting = false); }
+    } catch (e) {
+      _showError("Post failed: $e");
+    } finally {
+      if (mounted) {
+        setState(() => isSubmitting = false);
+      }
+    }
   }
 
   void _showError(String msg) {
@@ -330,7 +364,12 @@ class _AddJobScreenState extends State<AddJobScreen> {
   }
 
   Future<void> _selectDate() async {
-    DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2100));
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
     if (picked != null) setState(() => dateContoller.text = picked.toIso8601String().split('T').first);
   }
 

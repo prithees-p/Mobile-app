@@ -166,69 +166,38 @@ class _SearchJobScreenState extends State<SearchJobScreen> {
       margin: const EdgeInsets.only(bottom: 15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 3,
-      child: ExpansionTile(
-        leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.work, color: Colors.white)),
-        title: Text(job['job_title'] ?? "No Title", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("${job['location']} • ₹${job['salary']}"),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Column(
-              children: [
-                const Divider(),
-                // FETCHING CONTACT DETAILS LIVE
-                FutureBuilder<Map<String, dynamic>>(
-                  future: fetchOwnerDetails(job['name']),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const LinearProgressIndicator();
-                    }
-                    final data = snapshot.data;
-                    return Column(
-                      children: [
-                        _infoRow(Icons.person_pin, "Posted By", data?['full_name']),
-                        _infoRow(Icons.phone_android, "Mobile", data?['mobile_no']),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => JobDetailScreen(jobId: job['name']))),
-                    child: const Text("VIEW FULL DETAILS", style: TextStyle(color: Colors.white)),
-                  ),
-                )
-              ],
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => JobDetailScreen(
+                jobId: job['name'],
+                showApplyButton: 1,
+              ),      
             ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.indigo),
-          const SizedBox(width: 8),
-          Text("$label: ", style: const TextStyle(color: Colors.grey)),
-          Text(value ?? "N/A", style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+          );
+        },
+        leading: const CircleAvatar(
+          backgroundColor: Colors.indigo,
+          child: Icon(Icons.work, color: Colors.white),
+        ),
+        title: Text(
+          job['job_title'] ?? "No Title",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text("${job['location'] ?? 'Remote'} • ${job['salary'] ?? 'N/A'}"),
+        trailing: const Icon(Icons.chevron_right, color: Colors.indigo),
       ),
     );
   }
 }
 
-// --- DETAIL SCREEN ---
-
 class JobDetailScreen extends StatefulWidget {
   final String jobId;
-  const JobDetailScreen({super.key, required this.jobId});
+  final int showApplyButton;
+  const JobDetailScreen({super.key, required this.jobId,required this.showApplyButton});
 
   @override
   State<JobDetailScreen> createState() => _JobDetailScreenState();
@@ -240,6 +209,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   String username = "";
   String userEmail = "";
   String userRole = "";
+  String? checkedInAt;
+  String? checkedOutAt;
+
+  final TextEditingController checkInController = TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -254,7 +227,31 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       userEmail = email;
       userRole = prefs.getString('userRole') ?? "User";
     });
+    _fetchSignInStatus();
   }
+  Future<void> _fetchSignInStatus() async {
+    try {
+      final response = await ApiService().dio.get(
+        "/api/method/application.application.utils.py.api.get_check_in_status",
+        queryParameters: {"job_id": widget.jobId, 'email': userEmail},
+      );
+
+      if (response.data["message"] != null) {
+        List messageList = response.data["message"];
+        if (messageList.isNotEmpty) {
+          setState(() {
+            String rawTime = messageList[0].toString(); 
+            String checkoutrawTime = messageList[2].toString();
+            checkedInAt = rawTime;
+            checkedOutAt = checkoutrawTime;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Check-in status error: $e");
+    }
+  }
+
   Future<void> _fetchJobDetails() async {
     try {
       final response = await ApiService().dio.get(
@@ -337,8 +334,68 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       }
     }
   }
+  Future<void> _handleCheckIn(String checkInTime) async {
+    try{
+      final response = await ApiService().dio.post(
+        "/api/method/application.application.utils.py.api.check_in_for_job",
+        data: {
+          "job_id": widget.jobId,
+          "user": username,
+          "email": userEmail,
+          "check_in_time": checkInTime
+        },
+      );
 
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Checked in successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Check-in failed: ${e.toString()}"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } 
+  }
+  Future<void> _handleCheckOut(String checkOutTime) async {
+    try{
+      final response = await ApiService().dio.post(
+        "/api/method/application.application.utils.py.api.check_out_for_job",
+        data: {
+          "job_id": widget.jobId,
+          "user": username,
+          "email": userEmail,
+          "check_out_time": checkOutTime
+        },
+      );
 
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Checked out successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Check-out failed: ${e.toString()}"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } 
+  }
   @override
   Widget build(BuildContext context) {
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -500,7 +557,98 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   ),
 
                   const SizedBox(height: 20),
-                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: checkedInAt == null ? () => _handleCheckIn(DateTime.now().toString()) : null,
+                          borderRadius: BorderRadius.circular(15),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              color: checkedInAt == null ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: checkedInAt == null ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3)
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  checkedInAt == null ? Icons.location_on : Icons.check_circle, 
+                                  color: checkedInAt == null ? Colors.green : Colors.grey, 
+                                  size: 30
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  checkedInAt == null ? "Check In" : "Checked In",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: checkedInAt == null ? Colors.green : Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+
+                                if (checkedInAt != null)
+                                  Text(
+                                    "at $checkedInAt",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+
+                      Expanded(
+                        child: InkWell(
+                          onTap: (checkedOutAt == null && checkedInAt != null) ? () => _handleCheckOut(DateTime.now().toString()) : null,
+                          borderRadius: BorderRadius.circular(15),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              color: checkedOutAt == null 
+                                  ? Colors.orange.withOpacity(0.1) 
+                                  : Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: checkedOutAt == null 
+                                    ? Colors.orange.withOpacity(0.3) 
+                                    : Colors.grey.withOpacity(0.3)
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  checkedOutAt == null ? Icons.wrong_location : Icons.assignment_turned_in, 
+                                  color: checkedOutAt == null ? Colors.orange : Colors.grey, 
+                                  size: 30
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  checkedOutAt == null ? "Check Out" : "Checked Out",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: checkedOutAt == null ? Colors.orange : Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                // SHOW TIME IF PRESENT
+                                if (checkedOutAt != null)
+                                  Text(
+                                    "at $checkedOutAt",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
                 ],
               ),
             ),
@@ -649,28 +797,31 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   }
 
   Widget _buildApplyButton() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 55,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.indigo,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-          onPressed: () {
-            applyforjob(jobDetails!['name']);
-          },
-          child: const Text("APPLY FOR THIS JOB", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+    if (widget.showApplyButton == 1) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
         ),
-      ),
-    );
+        child: SizedBox(
+          width: double.infinity,
+          height: 55,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            onPressed: () {
+              applyforjob(jobDetails!['name']);
+            },
+            child: const Text("APPLY FOR THIS JOB", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   Future<void> _handleCalendarSync() async {

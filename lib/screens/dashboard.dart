@@ -30,6 +30,11 @@ class _DashboardState extends State<Dashboard> {
     
   }
 
+  @override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+  _loadUserInfo(); 
+}
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     print("USER information");
